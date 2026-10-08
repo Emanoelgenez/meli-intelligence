@@ -1,0 +1,183 @@
+{
+  "attribution": "Independent portfolio project. No SEC or MercadoLibre endorsement, sponsorship, affiliation or approval. No source logos are included.",
+  "build_date_policy": "Fixed Sprint 8D release date; not a live refresh timestamp.",
+  "builder_versions": {
+    "pyarrow": "25.0.1"
+  },
+  "bundle_id": "v1",
+  "contract_version": "1",
+  "datasets": {
+    "financial_facts": {
+      "accessions": [
+        "0001099590-25-000051",
+        "0001099590-26-000017",
+        "0001099590-26-000023"
+      ],
+      "first_accessions": [
+        "0001099590-25-000051",
+        "0001099590-26-000006",
+        "0001099590-26-000017",
+        "0001099590-26-000023"
+      ],
+      "input_silver_sha256": "b764020e13d6e18939396d0c66f126eac971c7b1bb2563ffa635289d939bbf32",
+      "max_period_end": "2026-06-30",
+      "methodology_version": "existing Silver schema 1; unchanged selection/definitions",
+      "metric_ids": [
+        "capex_productive_assets",
+        "cash_and_equivalents",
+        "gross_profit",
+        "net_income",
+        "net_revenues_financial_income",
+        "operating_cash_flow",
+        "operating_income",
+        "stockholders_equity",
+        "total_assets",
+        "total_liabilities"
+      ],
+      "min_period_end": "2025-09-30",
+      "path": "silver/sec/financial_facts.parquet",
+      "period_types": [
+        "INSTANT",
+        "QUARTER"
+      ],
+      "provenance": {
+        "content_sha256": "7ef80552e82d6e39c5d3d32671e5bb3fab189fd1bc486a3b1ad0671547736045",
+        "retrieved_at": "2026-10-06T23:13:06.189247+00:00",
+        "source_url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0001099590.json"
+      },
+      "row_count": 30,
+      "schema_name": "FINANCIAL_FACTS_SCHEMA",
+      "schema_version": "1",
+      "sha256": "53d28dcfd9e9157c6732b17865bb6b84babf8d168574357555d3e011e26263d2",
+      "source_family": "SEC EDGAR Company Facts API",
+      "source_organization": "MercadoLibre, Inc."
+    },
+    "operational_kpis": {
+      "accessions": [
+        "0001099590-25-000048",
+        "0001099590-26-000003",
+        "0001099590-26-000014",
+        "0001099590-26-000021"
+      ],
+      "definition_versions": [
+        "v1_transaction_action",
+        "v2_active_policy_and_current_loan",
+        "v2_excludes_p2p",
+        "v2_food_delivery"
+      ],
+      "first_accessions": [
+        "0001099590-25-000048",
+        "0001099590-26-000003",
+        "0001099590-26-000014",
+        "0001099590-26-000021"
+      ],
+      "input_silver_sha256": "6637016b09771d75d3eaec2a2cf839b86e477491f7ee6b930c293eaad995700a",
+      "max_period_end": "2026-06-30",
+      "methodology_version": "existing Silver schema 1; unchanged selection/definitions",
+      "metric_ids": [
+        "fintech_mau",
+        "gmv",
+        "items_sold",
+        "tpv",
+        "unique_active_buyers"
+      ],
+      "min_period_end": "2025-09-30",
+      "path": "silver/sec/operational_kpis.parquet",
+      "period_types": [
+        "INSTANT",
+        "QUARTER"
+      ],
+      "provenance": {
+        "documents": [
+          {
+            "accession_number": "0001099590-25-000004",
+            "content_sha256": "75fff6af04d87ce8a7dfc2fa2821f327f6c0f2f6193b376c4794177478ca46ab",
+            "filing_date": "2025-02-20",
+            "retrieved_at": "2026-10-05T15:32:34.574095+00:00",
+            "source_document": "meli-20250220xex991.htm",
+            "source_url": "https://www.sec.gov/Archives/edgar/data/1099590/000109959025000004/meli-20250220xex991.htm"
+          },
+          {
+            "accession_number": "0001099590-25-000025",
+            "content_sha256": "080bd267500750de7e009f6cfcd31252118f2aae5c6af6f4814a97213a990539",
+            "filing_date": "2025-05-07",
+            "retrieved_at": "2026-10-05T15:32:34.672550+00:00",
+            "source_document": "meli-20250507xex991.htm",
+            "source_url": "https://www.sec.gov/Archives/edgar/data/1099590/000109959025000025/meli-20250507xex991.htm"
+          },
+          {
+            "accession_number": "0001099590-25-000041",
+            "content_sha256": "31879a796e3d7e7672cc00bd4c4bde7d32cbc79b8f432bc83cc2ce3ac13af7a6",
+            "filing_date": "2025-08-04",
+            "retrieved_at": "2026-10-05T15:32:34.770501+00:00",
+            "source_document": "meli-20250804xex991.htm",
+            "source_url": "https://www.sec.gov/Archives/edgar/data/1099590/000109959025000041/meli-20250804xex991.htm"
+          },
+          {
+            "accession_number": "0001099590-25-000048",
+            "content_sha256": "4c3dc75d864d15a4ae6d57d0d91c1e7af47253d83809b835ed93e241e33bc66b",
+            "filing_date": "2025-10-29",
+            "retrieved_at": "2026-10-05T15:32:34.872170+00:00",
+            "source_document": "meli-20251029xex991.htm",
+            "source_url": "https://www.sec.gov/Archives/edgar/data/1099590/000109959025000048/meli-20251029xex991.htm"
+          },
+          {
+            "accession_number": "0001099590-26-000003",
+            "content_sha256": "e1dbf22113868795cfe8ff1fdf77fea6fc12dbc9c57d3b617bd73f09fdb18bd4",
+            "filing_date": "2026-02-24",
+            "retrieved_at": "2026-10-05T15:32:35.173193+00:00",
+            "source_document": "meli-20260224xex991.htm",
+            "source_url": "https://www.sec.gov/Archives/edgar/data/1099590/000109959026000003/meli-20260224xex991.htm"
+          },
+          {
+            "accession_number": "0001099590-26-000014",
+            "content_sha256": "7b81da4c2f29ad7b188e8859bd53559950b89a1990334f73d9069f039a0dc264",
+            "filing_date": "2026-05-07",
+            "retrieved_at": "2026-10-05T15:32:35.574714+00:00",
+            "source_document": "meli-20260507xex991.htm",
+            "source_url": "https://www.sec.gov/Archives/edgar/data/1099590/000109959026000014/meli-20260507xex991.htm"
+          },
+          {
+            "accession_number": "0001099590-26-000021",
+            "content_sha256": "e8d9199d1c5a3eef1214f2db731837b52a4a2a6847bd1df5b8baebb6cb047b87",
+            "filing_date": "2026-08-05",
+            "retrieved_at": "2026-10-05T15:32:35.675894+00:00",
+            "source_document": "meli-20260805xex991.htm",
+            "source_url": "https://www.sec.gov/Archives/edgar/data/1099590/000109959026000021/meli-20260805xex991.htm"
+          }
+        ]
+      },
+      "row_count": 20,
+      "schema_name": "OPERATIONAL_SCHEMA",
+      "schema_version": "1",
+      "sha256": "624626e8272a03a598c354d143eaa372212ea2cf1378883251ed8f59e5d4b636",
+      "source_family": "SEC EDGAR earnings release exhibit",
+      "source_organization": "MercadoLibre, Inc."
+    }
+  },
+  "excluded_datasets": [
+    "market_prices",
+    "market_capitalization"
+  ],
+  "generated_at": "2026-10-07T00:00:00Z",
+  "intentionally_missing_datasets": [
+    "evidence_registry",
+    "extended_operational_evidence",
+    "extended_operational_kpis",
+    "interpretations",
+    "macro_analytics",
+    "macro_evidence",
+    "macro_indicators",
+    "pestel",
+    "product_evidence",
+    "swot"
+  ],
+  "market_policy": "Market data is not part of this bundle. No price observations or price-derived Market Cap Gold.",
+  "provenance_policy": "Exact reviewed Company Facts input and E1-E7 SEC exhibits; all exported columns match existing normalization/canonicalization, including revision lineage.",
+  "selection_rule": "Existing QUARTER facts and INSTANT snapshots at 2025-09-30, 2025-12-31, 2026-03-31, 2026-06-30; disclosures by 2026-10-06; exact reported quarter starts; explicit metric allowlists; no value changes or derived quarters.",
+  "snapshot_cutoff": "2026-10-06",
+  "snapshot_reference_date": "2026-06-30",
+  "source_code_revision": "5c2e839d2322e656c4a59b24b9f2de5ae5bb5c6d",
+  "source_organization": "MercadoLibre, Inc.; disseminated by SEC EDGAR",
+  "source_review": "docs/methodology/public_source_review.md"
+}
