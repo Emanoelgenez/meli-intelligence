@@ -14,7 +14,9 @@ from meli_intelligence.config.settings import PROJECT_ROOT
 from meli_intelligence.storage.silver import FINANCIAL_FACTS_SCHEMA, validate_financial_facts
 from meli_intelligence.storage.operational_silver import OPERATIONAL_SCHEMA, CANONICAL_KEY
 
-BUNDLE_ROOT = PROJECT_ROOT / "demo_data" / "v1"
+BUNDLE_ROOT = Path(
+    os.environ.get("MELI_PUBLIC_DEMO_ROOT", PROJECT_ROOT / "demo_data" / "v1")
+).resolve()
 ARTIFACTS = {
     "financial_facts": "silver/sec/financial_facts.parquet",
     "operational_kpis": "silver/sec/operational_kpis.parquet",

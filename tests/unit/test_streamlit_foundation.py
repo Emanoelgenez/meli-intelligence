@@ -37,7 +37,7 @@ def test_sprint_5a_production_source_has_no_machine_specific_paths():
     project_root = Path(__file__).resolve().parents[2]
     source_files = [project_root / "streamlit_app.py"]
     source_files.extend((project_root / "src" / "meli_intelligence" / "ui").rglob("*.py"))
-    machine_paths = ("c:\\projetos\\invest", "c:\\users\\ExampleUser")
+    machine_paths = ("c:\\projetos\\invest", "c:\\users\\truechange")
 
     for source_path in source_files:
         normalized_source = source_path.read_text(encoding="utf-8").replace("/", "\\").casefold()
@@ -136,3 +136,51 @@ def test_ui_helper_import_does_not_require_streamlit():
     import meli_intelligence.ui.data  # noqa: F401
     import meli_intelligence.ui.health  # noqa: F401
     import meli_intelligence.ui.filters  # noqa: F401
+
+
+@pytest.mark.parametrize("explicit", [False, True])
+def test_entrypoint_bootstraps_root_before_first_package_import(tmp_path, explicit):
+    import os
+    import subprocess
+    import sys
+
+    root = Path(__file__).resolve().parents[2]
+    expected = tmp_path / "configured-root" if explicit else root
+    expected.mkdir(exist_ok=True)
+    environment = dict(os.environ, PYTHONPATH=str(root / "src"))
+    environment.pop("MELI_PROJECT_ROOT", None)
+    environment.pop("MELI_PUBLIC_DEMO_ROOT", None)
+    if explicit:
+        environment["MELI_PROJECT_ROOT"] = str(expected)
+    script = r'''
+import builtins
+import os
+from pathlib import Path
+import runpy
+import sys
+
+entrypoint, expected = map(Path, sys.argv[1:])
+assert Path.cwd() != entrypoint.parent
+assert not any(name.startswith("meli_intelligence") for name in sys.modules)
+original_import = builtins.__import__
+seen = []
+
+def guarded_import(name, *args, **kwargs):
+    if name == "meli_intelligence" or name.startswith("meli_intelligence."):
+        assert os.environ.get("MELI_PROJECT_ROOT") == str(expected)
+        seen.append(name)
+    return original_import(name, *args, **kwargs)
+
+builtins.__import__ = guarded_import
+runpy.run_path(str(entrypoint), run_name="entrypoint_contract")
+assert seen
+from meli_intelligence.config.settings import PROJECT_ROOT
+from meli_intelligence.ui.public_demo import BUNDLE_ROOT
+assert PROJECT_ROOT == expected.resolve()
+assert BUNDLE_ROOT == expected.resolve() / "demo_data" / "v1"
+'''
+    result = subprocess.run(
+        [sys.executable, "-c", script, str(root / "streamlit_app.py"), str(expected)],
+        cwd=tmp_path, env=environment, capture_output=True, text=True, timeout=60,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import runpy
 from pathlib import Path
 import shutil
 import os
@@ -296,3 +297,54 @@ def test_banner_absent_in_local_mode():
         def info(self, value):
             pytest.fail("Public banner in local mode")
     demo.render_public_demo_notice(RecordingUI())
+
+
+@pytest.mark.parametrize("explicit", [False, True])
+def test_public_bundle_root_configuration(tmp_path, monkeypatch, explicit):
+    from meli_intelligence.config import settings
+
+    application = tmp_path / "application"
+    monkeypatch.setattr(settings, "PROJECT_ROOT", application)
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("MELI_PUBLIC_DEMO_ROOT", raising=False)
+    expected = application / "demo_data" / "v1"
+    if explicit:
+        expected = tmp_path / "approved-bundle"
+        monkeypatch.setenv("MELI_PUBLIC_DEMO_ROOT", str(expected / ".." / expected.name))
+    namespace = runpy.run_path(demo.__file__)
+    assert namespace["BUNDLE_ROOT"] == expected.resolve()
+
+
+@pytest.mark.parametrize("dataset_id", tuple(demo.ARTIFACTS))
+def test_configured_public_root_never_inspects_production(tmp_path, monkeypatch, dataset_id):
+    target = tmp_path / "approved-bundle"
+    shutil.copytree(ROOT / "demo_data" / "v1", target)
+    monkeypatch.setenv("MELI_PUBLIC_DEMO_ROOT", str(target))
+    monkeypatch.setenv("MELI_PUBLIC_DEMO", "1")
+    namespace = runpy.run_path(demo.__file__)
+    resolve = namespace["resolve_dataset_path"]
+    expected = target / demo.ARTIFACTS[dataset_id]
+    production = tmp_path / "data" / demo.ARTIFACTS[dataset_id]
+    production.parent.mkdir(parents=True)
+    shutil.copyfile(expected, production)
+    original_stat = Path.stat
+    original_open = Path.open
+
+    def guard(operation):
+        def checked(path, *args, **kwargs):
+            if path.is_relative_to(tmp_path / "data"):
+                pytest.fail("Public mode inspected production data")
+            return operation(path, *args, **kwargs)
+        return checked
+
+    monkeypatch.setattr(Path, "stat", guard(original_stat))
+    monkeypatch.setattr(Path, "open", guard(original_open))
+    assert resolve(dataset_id, production) == expected
+    assert resolve(dataset_id, production, override=expected) == expected
+    with pytest.raises(PermissionError):
+        resolve(dataset_id, production, override=production)
+    with pytest.raises(namespace["PublicDemoExcluded"]):
+        resolve("market_prices", production)
+    expected.unlink()
+    with pytest.raises(FileNotFoundError, match="no local fallback"):
+        resolve(dataset_id, production)

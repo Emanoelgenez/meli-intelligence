@@ -2,6 +2,11 @@
 from __future__ import annotations
 
 from datetime import date
+import os
+from pathlib import Path
+
+# The application checkout owns runtime data, including non-editable installs.
+os.environ.setdefault("MELI_PROJECT_ROOT", str(Path(__file__).resolve().parent))
 
 from meli_intelligence.ui.catalog import get_dataset_catalog
 from meli_intelligence.ui.filters import BUSINESS_DOMAINS, FilterState
