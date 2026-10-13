@@ -24,7 +24,6 @@ from meli_intelligence.ui.temporal_charts import (
     chart_frame,
     chart_history,
     quarterly_chart_spec,
-    render_series_coverage,
 )
 
 MAX_DOMAIN_CARDS = 4
@@ -406,7 +405,9 @@ def select_domain_yoy(
     comparisons["_period_end"] = pd.to_datetime(
         comparisons["period_end"], errors="coerce"
     )
-    selected = comparisons.loc[comparisons["_period_end"].dt.date.eq(current_date)]
+    selected = comparisons.loc[
+        comparisons["_period_end"].dt.date.eq(current_date)
+    ]
     if selected.empty:
         return None
     try:
@@ -550,7 +551,9 @@ def render_domain_page(
                 )
             continue
         try:
-            frames[dataset_id] = load_dataset(dataset_id, path=item.path)
+            frames[dataset_id] = load_dataset(
+                dataset_id, path=item.path
+            )
         except Exception as exc:
             frames[dataset_id] = None
             read_errors.append(f"{dataset_id}: {type(exc).__name__}")
@@ -621,10 +624,6 @@ def render_domain_page(
         st.caption(
             f"{trend_spec.display_name} · observações da fonte; sem interpolação."
         )
-        full_series = select_domain_trend(
-            frames, domain, metric_id=trend_spec.metric_id
-        )
-        render_series_coverage(st, trend, "reference_date", full_series=full_series)
         full_history = st.checkbox("Exibir todo o histórico", key=f"historico_{domain}")
         visible_trend = chart_history(trend, full_history=full_history)
         unit = str(trend.get("unit", pd.Series([""])).iloc[0])
@@ -668,7 +667,9 @@ def render_domain_page(
     st.markdown("**Comparação anual**")
     comparison = select_domain_yoy(frames, domain, filters=date_filters)
     if comparison is None:
-        period = latest_period if not trend.empty else "o período selecionado"
+        period = (
+            latest_period if not trend.empty else "o período selecionado"
+        )
         st.write(
             f"Não há dados suficientes para estabelecer uma comparação anual "
             f"válida de {trend_spec.display_name} em {period}."

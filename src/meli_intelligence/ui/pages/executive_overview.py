@@ -31,7 +31,6 @@ from meli_intelligence.ui.temporal_charts import (
     chart_frame,
     chart_history,
     quarterly_chart_spec,
-    render_series_coverage,
 )
 
 _OVERVIEW_DATASETS = frozenset(
@@ -221,7 +220,9 @@ def render(st, health_records, catalog, filters: FilterState | None = None) -> N
             "Volume total de pagamentos (TPV)",
         ),
     }
-    visible_trend_specs = [(domain, *trend_specs[domain]) for domain in story_domains]
+    visible_trend_specs = [
+        (domain, *trend_specs[domain]) for domain in story_domains
+    ]
     if not visible_trend_specs:
         st.info(
             "A Visão geral reúne Financeiro, Comércio e Serviços financeiros. "
@@ -237,14 +238,6 @@ def render(st, health_records, catalog, filters: FilterState | None = None) -> N
             if trend.empty:
                 st.info(f"Não há série trimestral disponível de {label}.")
                 continue
-            full_series = (
-                select_financial_trend(frames.get("financial_facts"))
-                if domain == "Financial"
-                else select_domain_trend(
-                    frames, domain, metric_id=("gmv" if domain == "Commerce" else "tpv")
-                )
-            )
-            render_series_coverage(st, trend, date_column, full_series=full_series)
             full_history = st.checkbox(
                 "Exibir todo o histórico", key=f"historico_visao_{domain}"
             )
@@ -272,10 +265,13 @@ def render(st, health_records, catalog, filters: FilterState | None = None) -> N
             )
             continue
         st.write(
-            f"{signal.display_name}: {signal.formatted_value} em {signal.period_label}."
+            f"{signal.display_name}: {signal.formatted_value} em "
+            f"{signal.period_label}."
         )
     st.markdown("**Comparações anuais**")
-    financial_yoy = select_financial_yoy(frames.get("financial_facts"), filters=state)
+    financial_yoy = select_financial_yoy(
+        frames.get("financial_facts"), filters=state
+    )
     commerce_yoy = select_domain_yoy(frames, "Commerce", filters=state)
     fintech_yoy = select_domain_yoy(frames, "Fintech", filters=state)
     comparison_by_domain = {

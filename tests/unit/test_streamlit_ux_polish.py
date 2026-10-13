@@ -343,22 +343,3 @@ def test_macro_chart_title_is_factual_even_when_no_series_is_available(ui):
         for name, args, _, _ in ui.calls
     )
     assert not any(name == "line_chart" for name, _, _, _ in ui.calls)
-
-
-def test_public_history_coverage_copy_distinguishes_package_and_full_source():
-    from meli_intelligence.ui.temporal_charts import series_coverage
-
-    frame = pd.DataFrame(
-        {
-            "period_end": pd.to_datetime(["2025-09-30", "2026-03-31"]),
-            "value": [1.0, 2.0],
-        }
-    )
-    public_message, gaps = series_coverage(frame, "period_end", public_snapshot=True)
-    assert "pacote público demonstrativo" in public_message
-    assert "não representa todos os registros corporativos" in public_message
-    assert gaps == ("4º tri. 2025",)
-
-    local_message, _ = series_coverage(frame, "period_end", public_snapshot=False)
-    assert "série carregada" in local_message
-    assert "pacote público" not in local_message
