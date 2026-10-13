@@ -18,6 +18,7 @@ from meli_intelligence.config.settings import GOLD_DIR
 
 
 MACRO_ANALYTICS_SCHEMA_VERSION = "1"
+MACRO_EVIDENCE_SCHEMA_VERSION = "2"
 DEFAULT_MACRO_ANALYTICS_PATH = GOLD_DIR / "macro" / "macro_analytics.parquet"
 DEFAULT_MACRO_EVIDENCE_PATH = GOLD_DIR / "macro" / "macro_evidence.parquet"
 MACRO_ANALYTICS_SCHEMA = pa.schema([
@@ -50,6 +51,9 @@ MACRO_EVIDENCE_SCHEMA = pa.schema([
     pa.field("definition_context", pa.string(), nullable=False),
     pa.field("analytics_kind", pa.string(), nullable=False),
     pa.field("methodology_version", pa.string(), nullable=False),
+    pa.field("value", pa.float64(), nullable=False),
+    pa.field("unit", pa.string(), nullable=False),
+    pa.field("frequency", pa.string(), nullable=False),
 ])
 
 
@@ -159,6 +163,10 @@ def _merge_evidence(existing: pd.DataFrame, incoming: pd.DataFrame) -> pd.DataFr
         raise ValueError("Macro Evidence cannot be empty.")
     if incoming[list(MACRO_EVIDENCE_SCHEMA.names)].isna().any().any():
         raise ValueError("Macro Evidence required fields cannot be null.")
+    if not pd.api.types.is_numeric_dtype(incoming.value) or not incoming.value.map(math.isfinite).all():
+        raise ValueError("Macro Evidence values must be finite numeric values.")
+    if incoming[["unit", "frequency"]].apply(lambda column: column.astype(str).str.strip().eq("")).any().any():
+        raise ValueError("Macro Evidence unit and frequency cannot be empty.")
     if incoming.evidence_id.duplicated(keep=False).any():
         raise ValueError("Duplicate Macro Evidence IDs.")
     if (
@@ -204,7 +212,7 @@ def _write(
     metadata_path = _metadata_path(path)
     metadata = {
         "dataset": dataset,
-        "schema_version": MACRO_ANALYTICS_SCHEMA_VERSION,
+        "schema_version": MACRO_EVIDENCE_SCHEMA_VERSION if dataset == "macro_evidence" else MACRO_ANALYTICS_SCHEMA_VERSION,
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "row_count": table.num_rows,
         "parquet_file": path.name,

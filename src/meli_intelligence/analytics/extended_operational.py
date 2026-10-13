@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import pandas as pd
 
-
 METHODOLOGY_VERSION = "1"
 PERIOD_COLUMNS = [
     "period_start",
@@ -100,6 +99,7 @@ def calculate_extended_yoy(
         },
     )
     current = _metric_frame(facts, metric_id)
+    current = current.loc[current["period_type"].eq("INSTANT")].copy()
     if current.empty:
         return _empty()
     current["_month_day"] = current["period_end"].dt.strftime("%m-%d")
@@ -132,7 +132,6 @@ def calculate_extended_yoy(
         & (joined["period_end"].dt.strftime("%m-%d")
            == joined["previous_period_end"].dt.strftime("%m-%d"))
         & (joined["period_type"] == joined["previous_period_type"])
-        & (joined["period_label"] == joined["previous_period_label"])
         & (joined["value_qualifier"] == "exact")
         & (joined["previous_qualifier"] == "exact")
     ].copy()

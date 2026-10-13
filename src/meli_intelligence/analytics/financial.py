@@ -6,7 +6,6 @@ from typing import Final
 
 import pandas as pd
 
-
 PERIOD_KEY: Final[list[str]] = [
     "period_start",
     "period_end",
@@ -90,7 +89,7 @@ def _metric_frame(
 ) -> pd.DataFrame:
     frame = facts.loc[
         facts["metric_id"] == metric_id,
-        PERIOD_KEY + ["value"],
+        PERIOD_KEY + ["value", "unit"],
     ].copy()
 
     return frame
@@ -185,10 +184,11 @@ def calculate_yoy_growth(
         .dt.strftime("%m-%d")
     )
 
+    current["_economic_year"] = current["period_end"].dt.year
     comparison_key = [
-        "reference_year",
+        "_economic_year",
+        "unit",
         "period_type",
-        "period_label",
         "_start_month_day",
         "_end_month_day",
     ]
@@ -221,8 +221,8 @@ def calculate_yoy_growth(
         }
     )
 
-    previous["reference_year"] = (
-        previous["reference_year"] + 1
+    previous["_economic_year"] = (
+        previous["_economic_year"] + 1
     )
 
     merged = current.merge(

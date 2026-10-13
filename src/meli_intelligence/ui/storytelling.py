@@ -1,4 +1,5 @@
 """Pure helpers for the Executive Overview narrative and progressive disclosure."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -11,10 +12,14 @@ from meli_intelligence.ui.presentation import (
     latest_global_reference_date,
 )
 
-CENTRAL_QUESTION = "What does the current evidence say about MercadoLibre's business, ecosystem and operating context?"
+CENTRAL_QUESTION = (
+    "O que os dados atuais mostram sobre os negócios, o ecossistema e o "
+    "contexto operacional do Mercado Livre?"
+)
 EXECUTIVE_CONTEXT = (
-    "MELI Intelligence brings together financial, operational, macroeconomic and strategic evidence "
-    "to support structured investigation of MercadoLibre. It presents available evidence; it does not recommend decisions."
+    "O MELI Intelligence reúne dados financeiros, operacionais e macroeconômicos "
+    "para apoiar análises estruturadas. A página apresenta os dados "
+    "disponíveis e não recomenda decisões."
 )
 STORY_FLOW = ("Context", "Status", "Evidence", "Interpretation", "Next exploration")
 
@@ -28,7 +33,9 @@ class CoverageSummary:
     message: str | None
 
 
-def build_coverage_summary(health_records, degraded_message: str | None = None) -> CoverageSummary:
+def build_coverage_summary(
+    health_records, degraded_message: str | None = None
+) -> CoverageSummary:
     summary = executive_summary(health_records)
     return CoverageSummary(
         available=summary.available_count,
@@ -45,7 +52,13 @@ def availability_frame(health_records, catalog) -> pd.DataFrame:
     for item in health_records:
         spec = spec_by_id[item.dataset_id]
         for domain in spec.business_domains or ("Unassigned",):
-            records.append({"business_domain": domain, "layer": spec.layer, "status": format_status(item.status)})
+            records.append(
+                {
+                    "business_domain": domain,
+                    "layer": spec.layer,
+                    "status": format_status(item.status),
+                }
+            )
     columns = ["business_domain", "layer", "status", "dataset_count"]
     if not records:
         return pd.DataFrame(columns=columns)

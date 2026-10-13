@@ -1,4 +1,5 @@
 """Pure presentation models and formatters for executive-level evidence."""
+
 from __future__ import annotations
 
 import math
@@ -12,6 +13,65 @@ from meli_intelligence.ui.filters import FilterState, apply_filters
 
 MAX_EXECUTIVE_SIGNALS = 4
 MAX_INTERPRETATIONS = 3
+_MONTHS = (
+    "Jan",
+    "Feb",
+    "Mar",
+    "Apr",
+    "May",
+    "Jun",
+    "Jul",
+    "Aug",
+    "Sep",
+    "Oct",
+    "Nov",
+    "Dec",
+)
+
+DOMAIN_LABELS = {
+    "Financial": "Financeiro",
+    "Commerce": "Comércio",
+    "Fintech": "Serviços financeiros",
+    "Macro": "Macro",
+    "Market": "Mercado",
+    "Ecosystem": "Ecossistema",
+    "Ads": "Anúncios",
+    "Logistics": "Logística",
+}
+
+
+def display_domain(domain: str | None) -> str:
+    return DOMAIN_LABELS.get(domain, domain or "Não informado")
+
+
+def format_quarter(value: object) -> str:
+    try:
+        parsed = pd.Timestamp(value)
+        if pd.isna(parsed):
+            return "Indisponível"
+        return f"{(parsed.month - 1) // 3 + 1}º tri. {parsed.year}"
+    except (TypeError, ValueError, OverflowError):
+        return "Indisponível"
+
+
+def format_period_label(
+    period_type: str | None, period_end: object, label: object = None
+) -> str:
+    kind = str(period_type or "").upper()
+    if kind in {"QUARTER", "INSTANT"}:
+        return format_quarter(period_end)
+    if kind == "FY":
+        try:
+            return f"Exercício de {pd.Timestamp(period_end).year}"
+        except (TypeError, ValueError, OverflowError):
+            return "Exercício fiscal"
+    if kind == "YTD":
+        return f"Acumulado até {format_date_br(period_end)}"
+    return (
+        str(label).strip()
+        if label is not None and str(label).strip()
+        else format_date_br(period_end)
+    )
 
 
 @dataclass(frozen=True)
@@ -54,24 +114,71 @@ class ExecutiveSummary:
 
 # Labels are a small presentation allowlist; values always come from source frames.
 _SIGNAL_CANDIDATES = (
-    ("financial_facts", "Financial", (
-        ("net_revenues_financial_income", "Reported revenue and financial income", "Reported quarterly revenue facts."),
-    )),
-    ("operational_kpis", "Commerce", (
-        ("gmv", "Gross merchandise volume", "Reported Commerce volume."),
-        ("unique_active_buyers", "Active buyers", "Reported Commerce buyers."),
-    )),
-    ("operational_kpis", "Fintech", (
-        ("fintech_mau", "Fintech monthly active users", "Reported Fintech active-user base."),
-        ("tpv", "Fintech payment volume", "Reported Fintech payment volume."),
-    )),
-    ("macro_indicators", "Macro", (
-        ("selic_target_annual", "Target Selic rate", "Official monetary-policy reference rate."),
-        ("ipca_12m_change", "IPCA over 12 months", "Official headline inflation reported over 12 months."),
-        ("pix_transactions_count_monthly", "Monthly Pix transactions", "Official monthly Pix transaction count."),
-    )),
+    (
+        "financial_facts",
+        "Financial",
+        (
+            (
+                "net_revenues_financial_income",
+                "Receita e resultado financeiro",
+                "Receita reportada no trimestre.",
+            ),
+        ),
+    ),
+    (
+        "operational_kpis",
+        "Commerce",
+        (
+            (
+                "gmv",
+                "Volume bruto de mercadorias (GMV)",
+                "Volume de comércio reportado.",
+            ),
+            (
+                "unique_active_buyers",
+                "Compradores ativos únicos",
+                "Compradores de comércio reportados.",
+            ),
+        ),
+    ),
+    (
+        "operational_kpis",
+        "Fintech",
+        (
+            (
+                "fintech_mau",
+                "Usuários ativos mensais (Fintech)",
+                "Base reportada de usuários ativos do Fintech.",
+            ),
+            (
+                "tpv",
+                "Volume total de pagamentos (TPV)",
+                "Volume de pagamentos reportado.",
+            ),
+        ),
+    ),
+    (
+        "macro_indicators",
+        "Macro",
+        (
+            (
+                "selic_target_annual",
+                "Meta da taxa Selic",
+                "Taxa oficial de referência da política monetária.",
+            ),
+            (
+                "ipca_12m_change",
+                "IPCA em 12 meses",
+                "Inflação oficial acumulada em 12 meses.",
+            ),
+            (
+                "pix_transactions_count_monthly",
+                "Transações Pix mensais",
+                "Quantidade mensal de transações Pix reportada pelo Banco Central.",
+            ),
+        ),
+    ),
 )
-_MONTHS = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
 
 
 def _number(value: object) -> float | None:
@@ -90,9 +197,13 @@ def _localized_number(value: float, decimals: int) -> str:
 def format_compact_number(value: object) -> str:
     number = _number(value)
     if number is None:
-        return "Unavailable"
+        return "Indisponível"
     magnitude = abs(number)
-    for threshold, suffix in ((1_000_000_000_000, "tri"), (1_000_000_000, "bi"), (1_000_000, "mi")):
+    for threshold, suffix in (
+        (1_000_000_000_000, "tri"),
+        (1_000_000_000, "bi"),
+        (1_000_000, "milhões"),
+    ):
         if magnitude >= threshold:
             scaled = number / threshold
             decimals = 0 if scaled.is_integer() else 2
@@ -101,39 +212,86 @@ def format_compact_number(value: object) -> str:
     return _localized_number(number, decimals)
 
 
+def format_count(value: object, noun: str | None = None) -> str:
+    """Format reported counts consistently for pt-BR dashboard labels."""
+    number = _number(value)
+    if number is None:
+        return "Indisponível"
+    compact = format_compact_number(number)
+    if not noun:
+        return compact
+    if abs(number) >= 1_000_000:
+        if compact.endswith(" milhões") and abs(number) == 1_000_000:
+            compact = compact.removesuffix("s")
+        return f"{compact} de {noun}"
+    singular = {
+        "itens": "item",
+        "transações": "transação",
+        "usuários": "usuário",
+    }.get(noun, noun)
+    label = singular if abs(number) == 1 else noun
+    return f"{compact} {label}"
+
+
+def _compact_currency(value: float) -> str:
+    magnitude = abs(value)
+    for threshold, suffix in (
+        (1_000_000_000_000, "tri"),
+        (1_000_000_000, "bi"),
+        (1_000_000, "mi"),
+    ):
+        if magnitude >= threshold:
+            scaled = value / threshold
+            decimals = 0 if scaled.is_integer() else 2
+            return f"{_localized_number(scaled, decimals)} {suffix}"
+    return _localized_number(value, 0 if value.is_integer() else 2)
+
+
 def format_unit(unit: str | None) -> str:
     if not unit:
-        return "unit not reported"
+        return "unidade não informada"
     return {
         "percent": "%",
         "percentage_points": "p.p.",
         "USD": "US$",
         "BRL": "R$",
         "brl": "R$",
-        "million_usd": "US$ million",
-        "million_brl": "R$ million",
-        "brl_per_usd": "R$ per US$",
+        "million_usd": "milhões de US$",
+        "million_brl": "milhões de R$",
+        "brl_per_usd": "R$ por US$",
         "count": "",
-        "transactions": "transactions",
-        "users": "users",
-        "million_brl": "R$ million",
-        "index": "index points",
+        "transactions": "transações",
+        "users": "usuários",
+        "index": "pontos de índice",
     }.get(unit, unit.replace("_", " "))
 
 
 def format_metric(value: object, unit: str | None, *, compact: bool = True) -> str:
     number = _number(value)
     if number is None:
-        return "Unavailable"
+        return "Indisponível"
     if unit == "million_usd":
-        decimals = 0 if number.is_integer() else 2
-        return f"US$ {_localized_number(number, decimals)} mi"
+        divisor, suffix = (1_000, "bi") if abs(number) >= 1_000 else (1, "mi")
+        scaled = number / divisor
+        decimals = 0 if scaled.is_integer() else 2
+        return f"US$ {_localized_number(scaled, decimals)} {suffix}"
+    if unit == "million_brl":
+        divisor, suffix = (1_000, "bi") if abs(number) >= 1_000 else (1, "mi")
+        scaled = number / divisor
+        decimals = 0 if scaled.is_integer() else 2
+        return f"R$ {_localized_number(scaled, decimals)} {suffix}"
     if unit == "count":
-        return format_compact_number(number) if compact else _localized_number(number, 0 if number.is_integer() else 2)
+        return format_count(number) if compact else _localized_number(
+            number, 0 if number.is_integer() else 2
+        )
+    if unit == "users":
+        if compact:
+            return format_count(number, "usuários")
+        return f"{_localized_number(number, 0 if number.is_integer() else 2)} usuários"
     magnitude = abs(number)
-    is_currency = unit in {"USD", "BRL", "brl", "million_brl"}
+    is_currency = unit in {"USD", "BRL", "brl"}
     if compact and is_currency and magnitude >= 1_000_000:
-        rendered = format_compact_number(number)
+        rendered = _compact_currency(number)
     else:
         decimals = 0 if number.is_integer() and unit in {"transactions", "users"} else 2
         rendered = _localized_number(number, decimals)
@@ -147,9 +305,7 @@ def format_metric(value: object, unit: str | None, *, compact: bool = True) -> s
         return f"R$ {rendered}"
     if unit == "brl_per_usd":
         return f"R$ {rendered} / US$"
-    if unit == "million_brl":
-        return f"R$ {rendered} million"
-    if unit in {"transactions", "users"}:
+    if unit == "transactions":
         return f"{rendered} {format_unit(unit)}"
     return f"{rendered} {format_unit(unit)}"
 
@@ -166,23 +322,44 @@ def format_date(value: object) -> str:
     return f"{parsed.day:02d} {_MONTHS[parsed.month - 1]} {parsed.year}"
 
 
+def format_date_br(value: object) -> str:
+    if value is None:
+        return "Indisponível"
+    try:
+        if pd.isna(value):
+            return "Indisponível"
+        parsed = pd.Timestamp(value).date()
+    except (TypeError, ValueError, OverflowError):
+        return "Indisponível"
+    return parsed.strftime("%d/%m/%Y")
+
+
 def format_status(status: str) -> str:
     return {
-        "AVAILABLE": "Available — readable",
-        "MISSING": "Missing — file not found",
-        "EMPTY": "Empty — no observations",
-        "INVALID": "Invalid — file could not be read",
-    }.get(status, "Unavailable — status unknown")
+        "AVAILABLE": "Disponível — arquivo legível",
+        "MISSING": "Indisponível — arquivo não encontrado",
+        "EMPTY": "Indisponível — sem observações",
+        "INVALID": "Indisponível — arquivo inválido ou ilegível",
+    }.get(status, "Indisponível — motivo não informado")
 
 
 def executive_summary(health_records) -> ExecutiveSummary:
-    dates = [record.latest_reference_date for record in health_records if record.latest_reference_date is not None]
-    counts = {status: sum(record.status == status for record in health_records)
-              for status in ("AVAILABLE", "MISSING", "EMPTY", "INVALID")}
+    dates = [
+        record.latest_reference_date
+        for record in health_records
+        if record.latest_reference_date is not None
+    ]
+    counts = {
+        status: sum(record.status == status for record in health_records)
+        for status in ("AVAILABLE", "MISSING", "EMPTY", "INVALID")
+    }
     return ExecutiveSummary(
-        available_count=counts["AVAILABLE"], dataset_count=len(health_records),
-        missing_count=counts["MISSING"], empty_count=counts["EMPTY"],
-        invalid_count=counts["INVALID"], latest_reference_date=max(dates) if dates else None,
+        available_count=counts["AVAILABLE"],
+        dataset_count=len(health_records),
+        missing_count=counts["MISSING"],
+        empty_count=counts["EMPTY"],
+        invalid_count=counts["INVALID"],
+        latest_reference_date=max(dates) if dates else None,
     )
 
 
@@ -204,7 +381,7 @@ def _period_label(row: pd.Series, reference_date: date) -> str:
     for column in ("period_label", "period"):
         if column in row.index and pd.notna(row[column]) and str(row[column]).strip():
             return str(row[column])
-    return format_date(reference_date)
+    return format_date_br(reference_date)
 
 
 def _row_text(row: pd.Series, column: str, fallback: str) -> str:
@@ -214,8 +391,15 @@ def _row_text(row: pd.Series, column: str, fallback: str) -> str:
     return str(value)
 
 
-def _candidate_rows(frame: pd.DataFrame, metric_id: str, filters: FilterState) -> pd.DataFrame:
-    if frame is None or frame.empty or "metric_id" not in frame.columns or "value" not in frame.columns:
+def _candidate_rows(
+    frame: pd.DataFrame, metric_id: str, filters: FilterState
+) -> pd.DataFrame:
+    if (
+        frame is None
+        or frame.empty
+        or "metric_id" not in frame.columns
+        or "value" not in frame.columns
+    ):
         return pd.DataFrame()
     result = apply_filters(frame, filters)
     result = result.loc[result.metric_id.astype(str) == metric_id].copy()
@@ -227,8 +411,14 @@ def _candidate_rows(frame: pd.DataFrame, metric_id: str, filters: FilterState) -
     result = result.loc[result._ui_date.notna()].copy()
     if result.empty:
         return result
-    result["_ui_filed"] = pd.to_datetime(result["filed_at"], errors="coerce") if "filed_at" in result.columns else pd.NaT
-    return result.sort_values(["_ui_date", "_ui_filed"], kind="mergesort", na_position="first")
+    result["_ui_filed"] = (
+        pd.to_datetime(result["filed_at"], errors="coerce")
+        if "filed_at" in result.columns
+        else pd.NaT
+    )
+    return result.sort_values(
+        ["_ui_date", "_ui_filed"], kind="mergesort", na_position="first"
+    )
 
 
 def select_executive_signals(
@@ -237,8 +427,12 @@ def select_executive_signals(
     filters: FilterState | None = None,
     max_signals: int = MAX_EXECUTIVE_SIGNALS,
 ) -> tuple[ExecutiveSignal, ...]:
-    """Select one latest reported fact per allowlisted business domain; calculate nothing."""
-    if not isinstance(max_signals, int) or max_signals < 0 or max_signals > MAX_EXECUTIVE_SIGNALS:
+    """Select the latest reported fact per domain; calculate nothing."""
+    if (
+        not isinstance(max_signals, int)
+        or max_signals < 0
+        or max_signals > MAX_EXECUTIVE_SIGNALS
+    ):
         raise ValueError(f"max_signals must be between 0 and {MAX_EXECUTIVE_SIGNALS}.")
     state = (filters or FilterState()).validate()
     signals = []
@@ -254,7 +448,11 @@ def select_executive_signals(
             rows = _candidate_rows(frame, metric_id, state)
             if not rows.empty:
                 selected = rows.iloc[-1]
-                selected_metric, selected_label, selected_context = metric_id, label, context
+                selected_metric, selected_label, selected_context = (
+                    metric_id,
+                    label,
+                    context,
+                )
                 break
         if selected is None or len(signals) >= max_signals:
             continue
@@ -263,20 +461,28 @@ def select_executive_signals(
         if value is None or reference_date is None:
             continue
         unit = _row_text(selected, "unit", "")
-        source = _row_text(selected, "source", "Source not reported")
-        signals.append(ExecutiveSignal(
-            metric_id=selected_metric,
-            display_name=selected_label,
-            business_domain=domain,
-            value=value,
-            formatted_value=format_metric(value, unit),
-            unit=format_unit(unit),
-            reference_date=reference_date,
-            period_label=_period_label(selected, reference_date),
-            source=source,
-            full_precision_value=f"{selected.get('value')} {format_unit(unit)}".strip(),
-            context=selected_context,
-        ))
+        source = _row_text(selected, "source", "Fonte não informada")
+        signals.append(
+            ExecutiveSignal(
+                metric_id=selected_metric,
+                display_name=selected_label,
+                business_domain=domain,
+                value=value,
+                formatted_value=format_metric(value, unit),
+                unit=format_unit(unit),
+                reference_date=reference_date,
+                period_label=format_period_label(
+                    str(selected.get("period_type", "")),
+                    reference_date,
+                    _period_label(selected, reference_date),
+                ),
+                source=source,
+                full_precision_value=(
+                    f"{selected.get('value')} {format_unit(unit)}".strip()
+                ),
+                context=selected_context,
+            )
+        )
     return tuple(signals)
 
 
@@ -292,7 +498,9 @@ def select_latest_interpretations(
         return ()
     state = (filters or FilterState()).validate()
     selected = apply_filters(frame, state)
-    selected = selected.loc[selected.evidence_type.astype(str) == "INTERPRETATION"].copy()
+    selected = selected.loc[
+        selected.evidence_type.astype(str) == "INTERPRETATION"
+    ].copy()
     if selected.empty:
         return ()
     selected["_ui_date"] = selected.apply(_date_for_row, axis=1)
@@ -301,14 +509,20 @@ def select_latest_interpretations(
     )
     results = []
     for _, row in selected.head(limit).iterrows():
-        metric_id = _row_text(row, "source_metric_id", _row_text(row, "metric_id", "Metric not reported"))
-        results.append(InterpretationPreview(
-            evidence_id=str(row.get("evidence_id", "")),
-            claim=str(row.get("claim", "")),
-            metric_id=str(metric_id),
-            source=_row_text(row, "source", "Source not reported"),
-            reference_date=row["_ui_date"],
-        ))
+        metric_id = _row_text(
+            row,
+            "source_metric_id",
+            _row_text(row, "metric_id", "Métrica não informada"),
+        )
+        results.append(
+            InterpretationPreview(
+                evidence_id=str(row.get("evidence_id", "")),
+                claim=str(row.get("claim", "")),
+                metric_id=str(metric_id),
+                source=_row_text(row, "source", "Fonte não informada"),
+                reference_date=row["_ui_date"],
+            )
+        )
     return tuple(results)
 
 
@@ -328,15 +542,23 @@ def degraded_state_message(health_records) -> str | None:
     empty = sum(record.status == "EMPTY" for record in health_records)
     parts = []
     if invalid:
-        parts.append(f"{invalid} dataset(s) unreadable")
+        parts.append(f"{invalid} conjunto(s) ilegível(is)")
     if missing:
-        parts.append(f"{missing} dataset(s) not yet available")
+        parts.append(f"{missing} conjunto(s) ainda indisponível(is)")
     if empty:
-        parts.append(f"{empty} dataset(s) contain no observations")
-    return "Data availability is limited: " + "; ".join(parts) + ". Open Data Quality & Sources for details." if parts else None
+        parts.append(f"{empty} conjunto(s) sem observações")
+    return (
+        "Disponibilidade de dados limitada: "
+        + "; ".join(parts)
+        + ". Consulte Fontes e qualidade dos dados."
+        if parts
+        else None
+    )
 
 
-def unavailable_message(label: str, status: str, *, boundary: str, reason: str | None = None) -> str:
+def unavailable_message(
+    label: str, status: str, *, boundary: str, reason: str | None = None
+) -> str:
     """Describe an existing unavailable state without inferring data or its cause."""
     reasons = {
         "MISSING": "No local dataset is available for this view.",
@@ -344,5 +566,10 @@ def unavailable_message(label: str, status: str, *, boundary: str, reason: str |
         "INVALID": "The data could not be read or validated for this view.",
         "UNAVAILABLE": "No eligible data is available for this view.",
     }
-    explanation = reason or reasons.get(status, "An unavailability reason was not reported.")
-    return f"{label}: {status}. {explanation} {boundary} See Data Quality & Sources for details."
+    explanation = reason or reasons.get(
+        status, "An unavailability reason was not reported."
+    )
+    return (
+        f"{label}: {status}. {explanation} {boundary} "
+        "See Data Quality & Sources for details."
+    )

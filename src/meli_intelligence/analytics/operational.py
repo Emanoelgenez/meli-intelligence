@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import pandas as pd
 
-
 METHODOLOGY_VERSION = "1"
 
 PERIOD_KEY = [
@@ -77,6 +76,7 @@ def _metric_frame(
         PERIOD_KEY
         + [
             "value",
+            "unit",
             "definition_version",
         ],
     ].copy()
@@ -160,10 +160,11 @@ def _yoy_join(
         metric_id,
     )
 
+    current["_economic_year"] = current["period_end"].dt.year
     join_key = [
-        "reference_year",
+        "_economic_year",
+        "unit",
         "period_type",
-        "period_label",
         "_start_month_day",
         "_end_month_day",
         "_comparison_family",
@@ -197,8 +198,8 @@ def _yoy_join(
         }
     )
 
-    previous["reference_year"] = (
-        previous["reference_year"]
+    previous["_economic_year"] = (
+        previous["_economic_year"]
         + 1
     )
 

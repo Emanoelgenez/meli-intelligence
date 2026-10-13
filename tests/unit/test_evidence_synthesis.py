@@ -124,3 +124,97 @@ def test_operational_observation_keeps_observation_id_and_links_fact_id():
  source_url="https://sec.example",claim_kind="growth")])
  r=adapt_operational_evidence(f).iloc[0]
  assert r.evidence_id=="obs-1" and r.source_evidence_ids=='["fact-1"]' and r.evidence_type=="OBSERVATION"
+
+
+# Synthetic values/documents reproduce the audited 2012 period shapes without
+# copying private Silver records into repository fixtures.
+def financial_fact(**changes):
+    row = dict(metric_id="gross_profit", entity_cik="0000000001", entity_name="Fixture Inc.",
+               period_start=date(2012,6,26), period_end=date(2012,9,30),
+               period_type="QUARTER", period_label="Q3", value=100., unit="USD",
+               source="SEC EDGAR Company Facts API", taxonomy="us-gaap", concept="GrossProfit",
+               accession_number="0000000001-12-000001", filed_at=date(2012,11,1), form="10-Q")
+    return dict(row, **changes)
+
+
+@pytest.mark.parametrize("metric", ["gross_profit", "net_income", "operating_income"])
+def test_financial_2012_period_and_document_pairs_no_longer_collide(metric):
+    facts = pd.DataFrame([financial_fact(metric_id=metric), financial_fact(
+        metric_id=metric, period_start=date(2012,7,1), accession_number="0000000001-15-000002")])
+    before = facts.copy(deep=True)
+    result = adapt_financial_evidence(facts)
+    assert len(result) == 2 and result.evidence_id.is_unique
+    assert set(result.period_start) == {date(2012,6,26), date(2012,7,1)}
+    assert set(result.accession_number) == set(facts.accession_number)
+    assert result.filing_date.eq(date(2012,11,1)).all()
+    pd.testing.assert_frame_equal(facts, before)
+
+
+@pytest.mark.parametrize("field,value", [
+    ("period_start", date(2012,7,1)), ("period_end", date(2012,9,29)),
+    ("accession_number", "0000000001-13-000003"), ("filed_at", date(2013,1,1)),
+    ("source_url", "https://example.invalid/filing"), ("source_content_sha256", "a"*64),
+    ("source_bronze_file", "fixture.json"), ("entity_cik", "0000000002"),
+    ("unit", "BRL"), ("value", 101.), ("period_type", "YTD"),
+    ("taxonomy", "fixture-taxonomy"), ("concept", "OtherConcept"),
+])
+def test_financial_distinct_identity_dimensions(field, value):
+    result = adapt_financial_evidence(pd.DataFrame([financial_fact(), financial_fact(**{field:value})]))
+    assert len(result) == 2 and result.evidence_id.is_unique
+
+
+def test_financial_identity_is_repeatable_permutation_and_batch_independent():
+    facts = pd.DataFrame([financial_fact(), financial_fact(period_start=date(2012,7,1)),
+                          financial_fact(accession_number="0000000001-15-000002")])
+    expected = adapt_financial_evidence(facts)
+    pd.testing.assert_frame_equal(expected, adapt_financial_evidence(facts))
+    pd.testing.assert_frame_equal(expected, adapt_financial_evidence(facts.iloc[::-1]))
+    assert set(expected.evidence_id) == {
+        adapt_financial_evidence(facts.iloc[[i]]).evidence_id.iloc[0] for i in range(len(facts))
+    }
+
+
+@pytest.mark.parametrize("null", [None, float("nan"), pd.NA, pd.NaT])
+def test_financial_identity_normalizes_nulls_dates_and_numeric_types(null):
+    base = financial_fact(period_start=None, accession_number=None, filed_at=None)
+    variant = dict(base, period_start=null, accession_number=null, filed_at=null,
+                   evidence_id=null, claim=null, source_url=null,
+                   period_end=pd.Timestamp("2012-09-30"), value=100)
+    expected = adapt_financial_evidence(pd.DataFrame([base])).evidence_id.iloc[0]
+    assert adapt_financial_evidence(pd.DataFrame([variant])).evidence_id.iloc[0] == expected
+    variant["period_end"] = "2012-09-30"
+    assert adapt_financial_evidence(pd.DataFrame([variant])).evidence_id.iloc[0] == expected
+
+
+@pytest.mark.parametrize("explicit", ["source-fact", "  source-fact  ", 0])
+def test_financial_valid_explicit_ids_are_preserved(explicit):
+    result = adapt_financial_evidence(pd.DataFrame([financial_fact(evidence_id=explicit)]))
+    assert result.evidence_id.tolist() == [str(explicit)]
+
+
+@pytest.mark.parametrize("explicit", ["", " ", None, float("nan"), pd.NA])
+def test_financial_missing_or_blank_ids_use_generated_identity(explicit):
+    expected = adapt_financial_evidence(pd.DataFrame([financial_fact()])).evidence_id.iloc[0]
+    assert adapt_financial_evidence(pd.DataFrame([financial_fact(evidence_id=explicit)])).evidence_id.iloc[0] == expected
+
+
+def test_financial_duplicate_facts_and_explicit_id_conflicts_fail_closed():
+    for rows in (
+        [financial_fact(), financial_fact()],
+        [financial_fact(evidence_id="same"), financial_fact(evidence_id="same", period_start=date(2012,7,1))],
+    ):
+        with pytest.raises(ValueError, match="IDs must be unique"):
+            adapt_financial_evidence(pd.DataFrame(rows))
+    normalized = adapt_financial_evidence(pd.DataFrame([financial_fact()]))
+    with pytest.raises(ValueError, match="IDs must be unique"):
+        normalize_evidence(pd.concat([normalized, normalized], ignore_index=True))
+
+
+def test_financial_operational_explicit_id_collision_is_not_rewritten():
+    with pytest.raises(ValueError, match="collision across source"):
+        build_evidence_registry(financial=pd.DataFrame([financial_fact(evidence_id="op-1")]), operational=op())
+
+
+def test_financial_explicit_filing_date_retains_precedence():
+    result = adapt_financial_evidence(pd.DataFrame([financial_fact(filing_date=date(2013,1,1))]))
+    assert result.filing_date.tolist() == [date(2013,1,1)]

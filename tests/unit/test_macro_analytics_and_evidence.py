@@ -276,6 +276,8 @@ def test_macro_observations_are_deterministic_factual_and_non_interpretive(macro
         "source_metric_id": sample.source_metric_id,
         "source": sample.source,
         "definition_context": sample.definition_context,
+        "identity_version": "macro-numeric-v2",
+        "value": sample.value, "unit": sample.unit, "frequency": sample.frequency,
     }, sort_keys=True, ensure_ascii=False, separators=(",", ":")).encode("utf-8")).hexdigest()
     assert sample.evidence_id == expected_id
 
@@ -339,3 +341,13 @@ def test_gold_evidence_roundtrip_and_deterministic_identity(tmp_path: Path, macr
     assert replay[0].exists()
     queried = query_macro_evidence(path=path, metric_id="pix_transactions_count_yoy_growth", start_date=date(2024, 2, 1), end_date=date(2024, 2, 29))
     assert len(queried) == 1
+
+
+def test_strategic_bridge_audits_all_registered_macro_calculations(macro_facts):
+    from meli_intelligence.evidence.strategic import adapt_macro_strategic_evidence, validate_derivation_lineage
+    result = adapt_macro_strategic_evidence(macro_facts)
+    validate_derivation_lineage(result.registry, result.lineage)
+    assert result.lineage.observation_id.nunique() == len(build_macro_analytics(macro_facts))
+    assert result.registry.value.notna().all()
+    assert result.registry.unit.notna().all()
+    assert result.registry.frequency.notna().all()

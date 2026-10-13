@@ -1,14 +1,23 @@
 """Pure, allowlisted presentation helpers for reported Financial facts."""
+
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from datetime import date
-import math
 
 import pandas as pd
 
+from meli_intelligence.analytics.financial import (
+    calculate_yoy_growth as calculate_financial_yoy_growth,
+)
 from meli_intelligence.ui.filters import FilterState, apply_filters
-from meli_intelligence.ui.presentation import format_date, format_metric, select_latest_interpretations
+from meli_intelligence.ui.presentation import (
+    format_date_br,
+    format_metric,
+    format_period_label,
+    select_latest_interpretations,
+)
 
 MAX_FINANCIAL_CARDS = 4
 MAX_FINANCIAL_INTERPRETATIONS = 3
@@ -45,23 +54,76 @@ class FinancialFact:
 # These IDs are the actual concepts normalized by SEC Company Facts. The
 # overview is intentionally limited to quarterly duration facts.
 FINANCIAL_PRIORITY = (
-    FinancialMetricSpec("net_revenues_financial_income", "Revenue and financial income", "QUARTER", "Reported quarterly revenue facts.", True),
-    FinancialMetricSpec("operating_income", "Operating income", "QUARTER", "Reported quarterly operating income."),
-    FinancialMetricSpec("net_income", "Net income", "QUARTER", "Reported quarterly net income."),
-    FinancialMetricSpec("operating_cash_flow", "Operating cash flow", "QUARTER", "Reported quarterly operating cash flow."),
+    FinancialMetricSpec(
+        "net_revenues_financial_income",
+        "Receita e resultado financeiro",
+        "QUARTER",
+        "Receita reportada no trimestre.",
+        True,
+    ),
+    FinancialMetricSpec(
+        "operating_income",
+        "Lucro operacional",
+        "QUARTER",
+        "Lucro operacional reportado no trimestre.",
+    ),
+    FinancialMetricSpec(
+        "net_income",
+        "Lucro líquido",
+        "QUARTER",
+        "Lucro líquido reportado no trimestre.",
+    ),
+    FinancialMetricSpec(
+        "operating_cash_flow",
+        "Fluxo de caixa operacional",
+        "QUARTER",
+        "Fluxo de caixa operacional reportado no trimestre.",
+    ),
 )
 FINANCIAL_CONTEXT = (
-    FinancialMetricSpec("gross_profit", "Gross profit", "QUARTER", "Reported quarterly gross profit."),
-    FinancialMetricSpec("capex_productive_assets", "Capital expenditures on productive assets", "QUARTER", "Reported productive-asset cash expenditures."),
-    FinancialMetricSpec("cash_and_equivalents", "Cash and cash equivalents", "INSTANT", "Reported balance-sheet amount at period end."),
-    FinancialMetricSpec("total_assets", "Total assets", "INSTANT", "Reported balance-sheet amount at period end."),
-    FinancialMetricSpec("total_liabilities", "Total liabilities", "INSTANT", "Reported balance-sheet amount at period end."),
-    FinancialMetricSpec("stockholders_equity", "Stockholders' equity", "INSTANT", "Reported balance-sheet amount at period end."),
+    FinancialMetricSpec(
+        "gross_profit", "Lucro bruto", "QUARTER", "Lucro bruto reportado no trimestre."
+    ),
+    FinancialMetricSpec(
+        "capex_productive_assets",
+        "Investimentos em ativos produtivos",
+        "QUARTER",
+        "Desembolsos reportados em ativos produtivos.",
+    ),
+    FinancialMetricSpec(
+        "cash_and_equivalents",
+        "Caixa e equivalentes de caixa",
+        "INSTANT",
+        "Saldo reportado no balanço ao fim do período.",
+    ),
+    FinancialMetricSpec(
+        "total_assets",
+        "Ativos totais",
+        "INSTANT",
+        "Saldo reportado no balanço ao fim do período.",
+    ),
+    FinancialMetricSpec(
+        "total_liabilities",
+        "Passivos totais",
+        "INSTANT",
+        "Saldo reportado no balanço ao fim do período.",
+    ),
+    FinancialMetricSpec(
+        "stockholders_equity",
+        "Patrimônio líquido",
+        "INSTANT",
+        "Saldo reportado no balanço ao fim do período.",
+    ),
 )
 FINANCIAL_SPECS = FINANCIAL_PRIORITY + FINANCIAL_CONTEXT
 FINANCIAL_LABELS = {spec.metric_id: spec.display_name for spec in FINANCIAL_SPECS}
-FINANCIAL_QUESTION = "What do MercadoLibre's reported financials say about growth, profitability, cash generation and balance-sheet position?"
-_REQUIRED_COLUMNS = frozenset({"metric_id", "value", "unit", "period_end", "period_type"})
+FINANCIAL_QUESTION = (
+    "O que os resultados reportados mostram sobre crescimento, rentabilidade, "
+    "geração de caixa e posição patrimonial do Mercado Livre?"
+)
+_REQUIRED_COLUMNS = frozenset(
+    {"metric_id", "value", "unit", "period_end", "period_type"}
+)
 
 
 def _date_filters(filters: FilterState | None) -> FilterState:
@@ -70,12 +132,16 @@ def _date_filters(filters: FilterState | None) -> FilterState:
     return FilterState(start_date=state.start_date, end_date=state.end_date).validate()
 
 
-def _rows(frame: pd.DataFrame | None, spec: FinancialMetricSpec, filters: FilterState | None) -> pd.DataFrame:
+def _rows(
+    frame: pd.DataFrame | None, spec: FinancialMetricSpec, filters: FilterState | None
+) -> pd.DataFrame:
     if frame is None or frame.empty:
         return pd.DataFrame()
     missing = _REQUIRED_COLUMNS.difference(frame.columns)
     if missing:
-        raise ValueError(f"financial_facts is missing required columns: {sorted(missing)}")
+        raise ValueError(
+            f"financial_facts is missing required columns: {sorted(missing)}"
+        )
     result = apply_filters(frame, _date_filters(filters))
     result = result.loc[
         result.metric_id.astype(str).eq(spec.metric_id)
@@ -88,10 +154,18 @@ def _rows(frame: pd.DataFrame | None, spec: FinancialMetricSpec, filters: Filter
     result["_period_start"] = pd.to_datetime(result.period_start, errors="coerce")
     key = ["metric_id", "unit", "period_type", "_period_start", "_period_end"]
     if result.duplicated(key, keep=False).any():
-        raise ValueError(f"Duplicate financial economic keys for metric {spec.metric_id!r}.")
+        raise ValueError(
+            f"Duplicate financial economic keys for metric {spec.metric_id!r}."
+        )
     result["_value"] = pd.to_numeric(result.value, errors="coerce")
-    result = result.loc[result._value.map(lambda item: math.isfinite(float(item)) if pd.notna(item) else False)].copy()
-    return result.sort_values(["_period_end", "_period_start"], kind="mergesort").reset_index(drop=True)
+    result = result.loc[
+        result._value.map(
+            lambda item: math.isfinite(float(item)) if pd.notna(item) else False
+        )
+    ].copy()
+    return result.sort_values(
+        ["_period_end", "_period_start"], kind="mergesort"
+    ).reset_index(drop=True)
 
 
 def _as_date(value: object) -> date | None:
@@ -119,11 +193,13 @@ def _to_fact(row: pd.Series, spec: FinancialMetricSpec) -> FinancialFact:
         period_start=start,
         period_end=end,
         period_type=spec.period_type,
-        period_label=str(row.get("period_label", "") or "").strip() or format_date(end),
+        period_label=format_period_label(
+            spec.period_type, end, str(row.get("period_label", "") or "").strip()
+        ),
         filing_date=_as_date(row.get("filed_at")),
         form=str(row.get("form", "") or ""),
         accession_number=str(row.get("accession_number", "") or ""),
-        source=str(row.get("source", "Source not reported") or "Source not reported"),
+        source=str(row.get("source", "Fonte não informada") or "Fonte não informada"),
         full_precision_value=f"{row.get('value')} {unit}".strip(),
         context=spec.context,
     )
@@ -155,12 +231,30 @@ def select_financial_trend(
     metric_id: str = "net_revenues_financial_income",
 ) -> pd.DataFrame:
     """Return reported quarterly revenue points in time order without filling gaps."""
-    spec = next((item for item in FINANCIAL_PRIORITY if item.metric_id == metric_id and item.primary_trend), None)
+    spec = next(
+        (
+            item
+            for item in FINANCIAL_PRIORITY
+            if item.metric_id == metric_id and item.primary_trend
+        ),
+        None,
+    )
     if spec is None:
-        raise ValueError(f"Metric {metric_id!r} is not allowlisted for the Financial trend.")
+        raise ValueError(
+            f"Metric {metric_id!r} is not allowlisted for the Financial trend."
+        )
     rows = _rows(frame, spec, filters)
     if rows.empty:
-        return pd.DataFrame(columns=["period_start", "period_end", "value", "unit", "period_label", "source"])
+        return pd.DataFrame(
+            columns=[
+                "period_start",
+                "period_end",
+                "value",
+                "unit",
+                "period_label",
+                "source",
+            ]
+        )
     columns = ["period_start", "period_end", "_value", "unit"]
     for optional in ("period_label", "source"):
         if optional in rows.columns:
@@ -171,7 +265,46 @@ def select_financial_trend(
     return result.sort_values("period_end", kind="mergesort").reset_index(drop=True)
 
 
-def financial_freshness(frame: pd.DataFrame | None, *, filters: FilterState | None = None) -> date | None:
+def select_financial_yoy(
+    frame: pd.DataFrame | None,
+    *,
+    filters: FilterState | None = None,
+    metric_id: str = "net_revenues_financial_income",
+) -> tuple[date, float] | None:
+    """Return the exact quarterly YoY result for the latest selected observation."""
+    current = select_financial_trend(frame, filters=filters, metric_id=metric_id)
+    if current.empty:
+        return None
+    current_date = pd.Timestamp(current.iloc[-1]["period_end"]).date()
+    try:
+        comparisons = calculate_financial_yoy_growth(frame, metric_id)
+    except (KeyError, TypeError, ValueError):
+        return None
+    if comparisons.empty or "period_type" not in comparisons:
+        return None
+    comparisons = comparisons.loc[
+        comparisons["period_type"].astype(str).str.upper().eq("QUARTER")
+    ].copy()
+    if comparisons.empty:
+        return None
+    comparisons["_period_end"] = pd.to_datetime(
+        comparisons["period_end"], errors="coerce"
+    )
+    selected = comparisons.loc[
+        comparisons["_period_end"].dt.date.eq(current_date)
+    ]
+    if selected.empty:
+        return None
+    try:
+        value = float(selected.iloc[-1]["value"])
+    except (TypeError, ValueError, OverflowError):
+        return None
+    return (current_date, value) if math.isfinite(value) else None
+
+
+def financial_freshness(
+    frame: pd.DataFrame | None, *, filters: FilterState | None = None
+) -> date | None:
     if frame is None or frame.empty or "period_end" not in frame.columns:
         return None
     selected = apply_filters(frame, _date_filters(filters))
@@ -186,8 +319,14 @@ def select_financial_interpretations(
     limit: int = MAX_FINANCIAL_INTERPRETATIONS,
 ):
     if not isinstance(limit, int) or not 0 <= limit <= MAX_FINANCIAL_INTERPRETATIONS:
-        raise ValueError(f"limit must be between 0 and {MAX_FINANCIAL_INTERPRETATIONS}.")
-    if frame is None or frame.empty or not {"evidence_type", "business_domain"}.issubset(frame.columns):
+        raise ValueError(
+            f"limit must be between 0 and {MAX_FINANCIAL_INTERPRETATIONS}."
+        )
+    if (
+        frame is None
+        or frame.empty
+        or not {"evidence_type", "business_domain"}.issubset(frame.columns)
+    ):
         return ()
     financial = frame.loc[frame.business_domain.astype(str).eq("Financial")].copy()
     return select_latest_interpretations(
@@ -202,7 +341,7 @@ def select_financial_context(
     *,
     filters: FilterState | None = None,
 ) -> tuple[FinancialFact, ...]:
-    """Select explicitly allowlisted supporting facts, preserving instant/duration semantics."""
+    """Select supporting facts, preserving instant/duration semantics."""
     facts: list[FinancialFact] = []
     for spec in FINANCIAL_CONTEXT:
         rows = _rows(frame, spec, filters)
@@ -216,16 +355,22 @@ def financial_metric_availability(
     *,
     filters: FilterState | None = None,
 ) -> tuple[str, ...]:
-    return tuple(spec.display_name for spec in FINANCIAL_PRIORITY if _rows(frame, spec, filters).empty)
+    return tuple(
+        spec.display_name
+        for spec in FINANCIAL_PRIORITY
+        if _rows(frame, spec, filters).empty
+    )
 
 
 def financial_period_description(fact: FinancialFact) -> str:
     if fact.period_type == "INSTANT":
-        return f"Balance at {format_date(fact.period_end)} · instant"
-    start = format_date(fact.period_start) if fact.period_start else "Period start unavailable"
-    return f"{start} – {format_date(fact.period_end)} · {fact.period_type.lower()}"
+        return f"Posição em {format_date_br(fact.period_end)} · instantânea"
+    period = format_period_label(fact.period_type, fact.period_end, fact.period_label)
+    if fact.period_type == "QUARTER":
+        return f"Fluxo trimestral · {period}"
+    return f"Período: {period}"
 
 
 def financial_metric_label(metric_id: str) -> str:
     """Return a business label for allowlisted persisted Financial metrics."""
-    return FINANCIAL_LABELS.get(metric_id, "Reported Financial measure")
+    return FINANCIAL_LABELS.get(metric_id, "Indicador financeiro reportado")

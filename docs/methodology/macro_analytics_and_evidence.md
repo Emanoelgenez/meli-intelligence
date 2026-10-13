@@ -113,3 +113,55 @@ This boundary keeps official facts and deterministic calculations auditable
 without asserting that macroeconomic movement causes changes in MercadoLibre
 or Mercado Pago behavior. Product interpretation, hypothesis formation, and
 recommendations require later explicit stages and evidence.
+
+
+## Numeric transport and future acquisition (Sprint 8E.2B)
+
+Macro observations now retain required `value` (float64), `unit` and `frequency`
+from their source fact or analytic. Identity includes those values and the
+`macro-numeric-v2` discriminator, preventing rounded claim text from conflating
+numeric observations. Macro Evidence persistence schema is version 2; the Macro
+Analytics schema remains version 1. Legacy Macro Evidence files require a
+separately reviewed rebuild: the reader rejects the old schema, and no automatic
+migration or append into a legacy generation occurs in this sprint.
+
+The strategic macro adapter recomputes analytics from validated local Silver,
+requires a stable series/source/unit/frequency per metric, preserves the source
+URL and series in raw observations, and exposes calculation edges to exact source
+periods. Its source and derived namespaces also bind IDs to series provenance and
+operand IDs. These strategic Registry IDs are a separate contract from the
+standalone macro observations; do not mix the two generations implicitly.
+
+Acquisition is not performed by this adapter. Existing Python pipeline entrypoints
+(no dedicated macro CLI was found) are:
+
+| Module under meli_intelligence.pipelines | Function | Series |
+|---|---|---|
+| macro_bcb | build_bcb_selic_silver | Target/effective Selic |
+| macro_ibge | build_ibge_ipca_silver | Monthly/12-month IPCA |
+| macro_bcb_fx | build_bcb_usd_brl_silver | USD/BRL |
+| macro_bcb_credit | build_bcb_credit_silver | Household credit and >90-day NPL |
+| macro_bcb_activity | build_bcb_activity_silver | IBC-Br activity |
+| macro_ibge_economy | build_ibge_economy_silver | Unemployment and retail |
+| macro_bcb_pix | build_bcb_pix_silver | Monthly Pix count/value |
+
+For a separately authorized acquisition, call the selected function from Python
+with explicit start_date/end_date and controlled bronze_dir/output_path, e.g.:
+
+```python
+from datetime import date
+from pathlib import Path
+from meli_intelligence.pipelines.macro_bcb import build_bcb_selic_silver
+
+# Future acquisition only: this call uses network and writes Bronze/Silver.
+build_bcb_selic_silver(
+    date(2023, 1, 1), date(2024, 12, 31),
+    bronze_dir=Path("staging/bronze/bcb"),
+    output_path=Path("staging/silver/macro_indicators.parquet"),
+)
+```
+
+The existing macro_analytics.build_macro_gold writes final datasets and must not
+be used for an in-memory preview. Use build_macro_analytics,
+build_macro_observations or adapt_macro_strategic_evidence for local validation.
+No acquisition, Gold materialization or migration was executed in 8E.2B.

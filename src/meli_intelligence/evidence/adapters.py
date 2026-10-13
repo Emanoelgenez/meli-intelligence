@@ -71,29 +71,57 @@ def adapt_macro_evidence(frame):
             definition_context=r.get("definition_context","reported_macro_observation")))
     return _out(rows)
 
+def _financial_text(value):
+    """Canonical optional scalar text for financial identity, including pandas nulls."""
+    return None if value is None or pd.isna(value) else str(value)
+
+
+def _financial_evidence_id(source_row, evidence):
+    """Versioned, row-local identity; never disambiguate by order or batch contents."""
+    explicit = _financial_text(source_row.get("evidence_id"))
+    if explicit is not None and explicit.strip():
+        return explicit  # normalize_evidence rejects duplicates, including explicit IDs.
+    fields = (
+        "evidence_type", "business_domain", "entity", "metric_id", "reference_date",
+        "period_start", "period_end", "period_type", "period_label", "unit", "claim",
+        "source", "source_url", "filing_date", "accession_number",
+        "source_bronze_file", "source_content_sha256",
+    )
+    payload = {field: _financial_text(evidence.get(field)) for field in fields}
+    payload.update({field: _financial_text(source_row.get(field))
+                    for field in ("entity_cik", "taxonomy", "concept", "form")})
+    value = evidence.get("value")
+    payload["value"] = None if value is None or pd.isna(value) else float(value)
+    if payload["value"] == 0:
+        payload["value"] = 0.0  # +0 and -0 represent the same reported value.
+    payload["identity_version"] = "financial-v2"
+    return _id(payload)
+
+
 def adapt_financial_evidence(frame):
     """Adapt existing SEC facts or financial analytics without deriving metrics."""
     rows=[]
     for r in frame.to_dict("records"):
         metric=str(r.get("metric_id","")); ref=r.get("period_end",r.get("reference_date"))
         if not metric or ref is None or pd.isna(ref): raise ValueError("Financial evidence requires metric_id and period_end/reference_date.")
-        source=r.get("source") or r.get("source_url") or "SEC financial analytics"; value=r.get("value"); unit=r.get("unit")
-        claim=r.get("claim",r.get("statement"))
+        source=_financial_text(r.get("source")) or _financial_text(r.get("source_url")) or "SEC financial analytics"; value=r.get("value"); unit=_financial_text(r.get("unit"))
+        claim=_financial_text(r.get("claim",r.get("statement")))
         typ=str(r.get("evidence_type","OBSERVATION")).upper()
         if claim is None:
             if value is None or pd.isna(value): raise ValueError("Financial analytics row has no value.")
-            period=str(r.get("period_label") or pd.to_datetime(ref).date().isoformat())
+            period=_financial_text(r.get("period_label")) or pd.to_datetime(ref).date().isoformat()
             claim=f"Financial metric {metric} was {float(value):.15g} {unit or ''} for {period}."
-        eid=r.get("evidence_id") or _id({"type":typ,"metric":metric,"date":ref,"claim":claim,"source":source})
         kind=r.get("claim_kind","level")
         if metric.endswith("_yoy_growth") and value is not None and not pd.isna(value):
             kind="yoy_growth" if float(value)>0 else "yoy_decline" if float(value)<0 else "unchanged"
-        rows.append(_row(evidence_id=eid,evidence_type=typ,business_domain=r.get("business_domain","Financial"),
+        evidence=_row(evidence_id="",evidence_type=typ,business_domain=r.get("business_domain","Financial"),
             entity=r.get("entity_name",r.get("entity")),metric_id=metric,reference_date=ref,claim=claim,claim_kind=kind,
-            source=source,source_url=r.get("source_url"),filing_date=r.get("filing_date"),accession_number=r.get("accession_number"),source_bronze_file=r.get("source_bronze_file"),source_content_sha256=r.get("source_content_sha256"),source_metric_id=r.get("source_metric_id",r.get("source_metrics",metric)),
+            source=source,source_url=r.get("source_url"),filing_date=_financial_text(r.get("filing_date")) or r.get("filed_at"),accession_number=r.get("accession_number"),source_bronze_file=r.get("source_bronze_file"),source_content_sha256=r.get("source_content_sha256"),source_metric_id=r.get("source_metric_id",r.get("source_metrics",metric)),
             source_evidence_ids=r.get("source_evidence_ids",[]),value=value,unit=unit,frequency=r.get("frequency"),
             period_start=r.get("period_start"),period_end=r.get("period_end",ref),period_type=r.get("period_type"),
-            period_label=r.get("period_label"),definition_context=r.get("definition_context",r.get("formula","reported_financial_metric"))))
+            period_label=r.get("period_label"),definition_context=r.get("definition_context",r.get("formula","reported_financial_metric")))
+        evidence["evidence_id"] = _financial_evidence_id(r, evidence)
+        rows.append(evidence)
     return _out(rows)
 
 def build_evidence_registry(*,financial=None,operational=None,macro=None):

@@ -8,7 +8,7 @@ No provider passed the source-acceptance gate. No Market client, transformation,
 
 ## Baseline
 
-- Worktree: `<LOCAL_USER_HOME>\.codex\worktrees\market-source-sprint-5h\invest`
+- Worktree: `C:\Users\Truechange\.codex\worktrees\market-source-sprint-5h\invest`
 - Baseline HEAD: `655b5f0289b3e7f2ca800d8a5a82bdcfb7b1025b`
 - Baseline commit: `feat: add Market storytelling foundation`
 - Initial working tree: clean

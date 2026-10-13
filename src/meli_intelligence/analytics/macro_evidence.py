@@ -16,7 +16,7 @@ MACRO_EVIDENCE_COLUMNS = [
     "evidence_id", "evidence_type", "business_domain", "metric_id",
     "reference_date", "claim", "claim_kind", "source", "source_metric_id",
     "is_interpretation", "definition_context", "analytics_kind",
-    "methodology_version",
+    "methodology_version", "value", "unit", "frequency",
 ]
 
 FACT_LABELS = {
@@ -161,10 +161,10 @@ def build_macro_observations(
     macro_analytics: pd.DataFrame,
 ) -> pd.DataFrame:
     """Create one deterministic OBSERVATION for each official or derived fact."""
-    fact_required = {"metric_id", "reference_date", "value", "unit", "source"}
+    fact_required = {"metric_id", "reference_date", "value", "unit", "frequency", "source"}
     analytics_required = {
         "metric_id", "reference_date", "value", "unit", "source_metric_id",
-        "source", "analytics_kind", "definition_context",
+        "source", "analytics_kind", "definition_context", "frequency",
     }
     missing_facts = fact_required.difference(macro_facts.columns)
     missing_analytics = analytics_required.difference(macro_analytics.columns)
@@ -176,7 +176,7 @@ def build_macro_observations(
     analytics = macro_analytics.copy()
     facts["reference_date"] = pd.to_datetime(facts.reference_date).dt.date
     analytics["reference_date"] = pd.to_datetime(analytics.reference_date).dt.date
-    if facts[["metric_id", "reference_date", "value", "unit", "source"]].isna().any().any():
+    if facts[sorted(fact_required)].isna().any().any():
         raise ValueError("Macro facts for observations cannot contain null required values.")
     if analytics[list(analytics_required)].isna().any().any():
         raise ValueError("Macro analytics for observations cannot contain null required values.")
@@ -185,6 +185,8 @@ def build_macro_observations(
     if analytics.duplicated(["metric_id", "reference_date"], keep=False).any():
         raise ValueError("Duplicate macro analytics economic key in observations.")
     for name, frame in (("fact", facts), ("analytics", analytics)):
+        if frame[["unit", "frequency"]].apply(lambda column: column.astype(str).str.strip().eq("")).any().any():
+            raise ValueError("Macro observation unit and frequency cannot be empty.")
         numeric_values = pd.to_numeric(frame["value"], errors="raise")
         if numeric_values.isna().any() or not numeric_values.map(
             lambda value: math.isfinite(float(value))
@@ -200,7 +202,9 @@ def build_macro_observations(
             "source_metric_id": source_metric_id, "source": str(row["source"]),
         }
         rows.append({
-            "evidence_id": _evidence_id(evidence_payload),
+            "evidence_id": _evidence_id({**evidence_payload, "identity_version": "macro-numeric-v2",
+                                        "value": float(row["value"]), "unit": row["unit"], "frequency": row["frequency"]}),
+            "value": float(row["value"]), "unit": row["unit"], "frequency": row["frequency"],
             "evidence_type": "OBSERVATION", "business_domain": "Macro",
             "metric_id": source_metric_id, "reference_date": row["reference_date"],
             "claim": claim, "claim_kind": claim_kind, "source": str(row["source"]),
@@ -219,7 +223,9 @@ def build_macro_observations(
             "definition_context": str(row["definition_context"]),
         }
         rows.append({
-            "evidence_id": _evidence_id(evidence_payload),
+            "evidence_id": _evidence_id({**evidence_payload, "identity_version": "macro-numeric-v2",
+                                        "value": float(row["value"]), "unit": row["unit"], "frequency": row["frequency"]}),
+            "value": float(row["value"]), "unit": row["unit"], "frequency": row["frequency"],
             "evidence_type": "OBSERVATION", "business_domain": "Macro",
             "metric_id": str(row["metric_id"]), "reference_date": row["reference_date"],
             "claim": claim, "claim_kind": claim_kind,
