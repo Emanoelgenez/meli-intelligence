@@ -116,8 +116,12 @@ def test_public_catalog_and_approved_path_overrides(monkeypatch, tmp_path):
     assert {
         h.dataset_id for h in check_all_datasets() if h.status == "AVAILABLE"
     } == set(demo.ARTIFACTS)
-    assert len(load_dataset("financial_facts")) == 30
-    assert len(load_dataset("operational_kpis")) == 20
+    manifest = demo.validate_bundle()
+    for dataset_id in demo.ARTIFACTS:
+        assert (
+            len(load_dataset(dataset_id))
+            == manifest["datasets"][dataset_id]["row_count"]
+        )
     for dataset_id, relative in demo.ARTIFACTS.items():
         assert not load_dataset(dataset_id, path=demo.BUNDLE_ROOT / relative).empty
         with pytest.raises(PermissionError):
@@ -366,6 +370,10 @@ for page in BASE_NAVIGATION_OPTIONS:
     assert any("Modo de demonstração" in item.value for item in app.info)
     if page in {"Visão geral", "Financeiro", "Comércio", "Serviços financeiros"}:
         assert len(app.metric) >= 2, page
+        assert any(
+            "Cobertura neste pacote público" in item.value
+            for item in app.caption
+        ), page
     if page == "Fontes e qualidade dos dados":
         frame = app.dataframe[0].value
         assert len(frame) == 14

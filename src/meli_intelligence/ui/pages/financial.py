@@ -27,6 +27,7 @@ from meli_intelligence.ui.temporal_charts import (
     chart_frame,
     chart_history,
     quarterly_chart_spec,
+    render_series_coverage,
 )
 
 DATASET_IDS = ("financial_facts", "interpretations")
@@ -49,9 +50,7 @@ def _load(health_records, filters: FilterState):
                 )
             continue
         try:
-            frames[dataset_id] = load_dataset(
-                dataset_id, path=item.path
-            )
+            frames[dataset_id] = load_dataset(dataset_id, path=item.path)
         except Exception as exc:
             frames[dataset_id] = None
             label = (
@@ -133,6 +132,8 @@ def render(
             "Dados de duração trimestral, exibidos nas datas reportadas. "
             "Não há preenchimento, reamostragem ou recálculo de períodos."
         )
+        full_series = select_financial_trend(facts)
+        render_series_coverage(st, trend, "period_end", full_series=full_series)
         full_history = st.checkbox(
             "Exibir todo o histórico", key="historico_financeiro"
         )
