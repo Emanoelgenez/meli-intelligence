@@ -1,0 +1,10 @@
+# Versions reported in the G31 Cloud incident; production requirements stay minimal.
+streamlit==1.59.1
+pandas==3.0.6
+pyarrow==24.0.0
+
+# Reproduction tooling, not versions claimed for the historical Cloud environment.
+websockets==17.2
+uv==0.13.0
+setuptools==84.0.0
+wheel==0.48.0

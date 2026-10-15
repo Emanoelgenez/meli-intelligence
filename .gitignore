@@ -34,3 +34,6 @@ data/gold/*
 .DS_Store
 Thumbs.db
 Desktop.ini
+
+# Local G36 investigation runtimes and diagnostic outputs
+.g36-evidence/

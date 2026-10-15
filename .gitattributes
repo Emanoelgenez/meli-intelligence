@@ -1,0 +1,2 @@
+# The manifest hashes the generator's exact Git bytes on every platform.
+scripts/build_public_demo.py text eol=lf
